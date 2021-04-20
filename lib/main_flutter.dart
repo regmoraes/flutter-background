@@ -4,8 +4,10 @@ import 'dart:isolate';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:platform_channels/jobexecutor.dart';
 import 'package:platform_channels/message_bloc.dart';
 import 'package:platform_channels/notifications.dart';
+import 'package:platform_channels/scheduler.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'flutter_dispatcher.dart';
@@ -52,8 +54,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  bool _scheduled = false;
-
   @override
   void initState() {
     super.initState();
@@ -64,52 +64,52 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
+        appBar: AppBar(
+          title: Text(widget.title),
+        ),
+        body: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            StreamBuilder(
+              stream: JobExecutor.listenPort(),
+              builder: (context, snapshot) {
+                print('snapshot is: $snapshot');
+                return snapshot.hasData
+                    ? Center(
+                        child: Container(
+                          color: Colors.red,
+                          child: Text('Receiving: ${snapshot.data}'),
+                        ),
+                      )
+                    : Container();
+              },
+            ),
             BlocBuilder<MessageBloc, MessageState>(
               builder: (context, state) {
                 return Text('Current count is: ${state.count}');
               },
-            ),
-            Text(
-              'Envio de Comprovantes Agendado: ${_scheduled ? 'Sim' : 'Não'}',
-            ),
+            )
           ],
         ),
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            onPressed: () async {
-              Workmanager.registerOneOffTask("background-task-id", "schedule",
-                  constraints: Constraints(
-                    networkType: NetworkType.connected,
-                    requiresCharging: true,
-                  ));
-              setState(() {
-                _scheduled = true;
-              });
-            },
-            tooltip: 'Schedule',
-            child: Icon(Icons.timer),
-          ),
-          FloatingActionButton(
-            onPressed: () async {
-              setState(() {
+        floatingActionButton: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              onPressed: () async {
+                scheduleJob();
+                print('Job scheduled');
+              },
+              tooltip: 'Schedule',
+              child: Icon(Icons.timer),
+            ),
+            FloatingActionButton(
+              onPressed: () async {
                 context.read<MessageBloc>().add(MessageEvent('pa'));
-              });
-            },
-            tooltip: 'Add',
-            child: Icon(Icons.add),
-          ),
-        ],
-      )
-    );
+              },
+              tooltip: 'Add',
+              child: Icon(Icons.add),
+            ),
+          ],
+        ));
   }
 }

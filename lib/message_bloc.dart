@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:ui';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:platform_channels/jobexecutor.dart';
 import 'package:workmanager/workmanager.dart';
 
 class MessageEvent {
@@ -20,7 +21,6 @@ class MessageState {
 class MessageBloc extends Bloc<MessageEvent, MessageState> {
   var count = 0;
   final max = 11;
-  bool sendingInBackground = false;
 
   ReceivePort receivePort;
   StreamSubscription receivePortSubscription;
@@ -28,26 +28,19 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   MessageBloc() : super(MessageState(0)) {
     print('My isolate is: ${Isolate.current.hashCode}');
     print('My instance is: $hashCode');
-    receivePort = ReceivePort();
-    IsolateNameServer.registerPortWithName(receivePort.sendPort, "foreground-port");
-    receivePortSubscription = receivePort.listen((message) {
-      sendingInBackground = message;
-    });
-    sendPendingProofOfConclusion();
+    sendPendingProofOfConclusionIfNeeded();
   }
 
-  void sendPendingProofOfConclusion() {
-    if(sendingInBackground) {
-      print('already sending');
-    } else {
-      print('Enviar direto');
+  void sendPendingProofOfConclusionIfNeeded() {
+    if (JobExecutor.hasJobRunning) {
+      print("There's a job running don't need to send");
     }
   }
 
   @override
-  Stream<MessageState> mapEventToState(MessageEvent event) async*{
-    if(event.message == "progress") {
-      while(count < max) {
+  Stream<MessageState> mapEventToState(MessageEvent event) async* {
+    if (event.message == "progress") {
+      while (count < max) {
         await Future.delayed(Duration(seconds: 1));
         yield MessageState(count++);
       }
@@ -56,12 +49,5 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       count++;
       yield MessageState(count);
     }
-  }
-
-  @override
-  Future<Function> close() {
-    receivePortSubscription.cancel();
-    IsolateNameServer.removePortNameMapping("foreground-port");
-    super.close();
   }
 }
